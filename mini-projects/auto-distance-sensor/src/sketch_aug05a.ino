@@ -4,23 +4,23 @@
 
 Servo hinge;
 
-void setup() {
-  Wire.begin();
-  Serial.begin(9600);
-
-  hinge.attach(9);
-}
-
-uint16_t readings[4] = {0};
-
 #define MIN_RANGE 350
-#define ARTICULATION 120
 #define MAX_RANGE 1200
+#define ARTICULATION 120
 #define ZERO 0
 
-int reading = 0;
+// Define the number of samples to keep track of.  The higher the number,
+// the more the readings will be smoothed, but the slower the output will
+// respond to the input.  Using a constant rather than a normal variable lets
+// use this value to determine the size of the readings array.
+const int numReadings = 10;
 
-void loop() {
+int readings[numReadings];      // the readings from the analog input
+int readIndex = 0;              // the index of the current reading
+int total = 0;                  // the running total
+int average = 0;                // the average
+
+void sensor_setup() {
   // step 1: instruct sensor to read echoes
   Wire.beginTransmission(112); // transmit to device #112 (0x70)
   // the address specified in the datasheet is 224 (0xE0)
@@ -30,9 +30,16 @@ void loop() {
   // use 0x51 for centimeters
   // use 0x52 for ping microseconds
   Wire.endTransmission();      // stop transmitting
+}
 
-  // step 2: wait for readings to happen
+int sensor_read() {
+
+
+  sensor_setup();
+
   delay(70);                   // datasheet suggests at least 65 milliseconds
+
+  int reading = 0;
 
   // step 3: instruct sensor to return a particular echo reading
   Wire.beginTransmission(112); // transmit to device #112
@@ -47,26 +54,52 @@ void loop() {
     reading = Wire.read();  // receive high byte (overwrites previous reading)
     reading = reading << 8;    // shift high byte to be high 8 bits
     reading |= Wire.read(); // receive low byte as lower 8 bits
-    readings[4] = reading;
     Serial.println(reading);
+    return reading;
+  } else {
+    Serial.println("no reading received");
+    return -1;
   }
+}
 
+void setup() {
+  // initialize serial communication with computer:
+  Serial.begin(9600);
+  Wire.begin();
+  hinge.attach(9);
 
-
-  if(readings[4] > MAX_RANGE || readings[4] < MIN_RANGE) {
-    return;
+  // initialize all the readings to 0:
+  for (int i = 0; i < numReadings; i++) {
+    readings[i] = 0;
   }
-
-  for (int i = 0; i < 4; i++)
-    readings[i] = readings[i + 1];
-  
-  
-  int smoothed = (3 * readings[0] + 12 * readings[1] + 17 * readings[2] + 12 * readings[3] + 3 * readings[4]) / 35;
-  
-  
-  Serial.println(map(smoothed, MIN_RANGE, MAX_RANGE, ZERO, ZERO + ARTICULATION));
-
-  hinge.write(map(smoothed, MIN_RANGE, MAX_RANGE, ZERO, ZERO + ARTICULATION));
 
 }
 
+void loop() {
+
+  // subtract the last reading:
+  total = total - readings[readIndex];
+  // read from the sensor:
+  readings[readIndex] = sensor_read();
+  // add the reading to the total:
+  total = total + readings[readIndex];
+  // advance to the next position in the array:
+  readIndex = readIndex + 1;
+
+  // if we're at the end of the array...
+  if (readIndex >= numReadings) {
+    // ...wrap around to the beginning:
+    readIndex = 0;
+  }
+
+  // calculate the average:
+  average = total / numReadings;
+  // send it to the computer as ASCII digits
+
+  Serial.println(map(average, MIN_RANGE, MAX_RANGE, ZERO, ZERO + ARTICULATION));
+  hinge.write(map(average, MIN_RANGE, MAX_RANGE, ZERO, ZERO + ARTICULATION));
+
+  // delay in between reads for stability
+  delay(1); 
+
+}
