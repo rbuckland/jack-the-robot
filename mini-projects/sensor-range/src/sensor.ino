@@ -12,13 +12,7 @@ be a constant value.
 #define LCD_TX              0x03                                   // Software serial pin for tx
 #define SRF_ADDRESS         0x70                                   // Address of the SRF08
 #define CMD                 (byte)0x00                             // Command byte, values of 0 being sent with write have to be masked as a byte to stop them being misinterpreted as NULL this is a bug with arduino 1.0
-#define LIGHTBYTE           0x01                                   // Byte to read light sensor
 #define RANGEBYTE           0x02                                   // Byte for start of ranging data
-#define LCD03_CLEAR         0x0C                                   // Byte to clear LCD03 screen
-#define LCD03_SET_CUR       0x02                                   // Byte to tell LCD03 we wish to move cursor
-#define LCD03_HIDE_CUR      0x04                                   // Byte to hide the cursor
-
-//SoftwareSerial Serial =  SoftwareSerial(LCD_RX, LCD_TX);    // defines a new software serial port for Serial
 
 byte highByte = 0x00;                             // Stores high byte from ranging
 byte lowByte = 0x00;                              // Stored low byte from ranging
@@ -29,13 +23,9 @@ void setup(){
   Wire.begin();
   delay(100);                                     // Waits to make sure everything is powered up before sending or receiving data
 
-  Serial.write(LCD03_CLEAR);
-  Serial.write(LCD03_HIDE_CUR);
   Serial.println("SRF02/08/10/235");
 
   int softRev = getSoft();                        // Calls function to get software revision
-  Serial.write(LCD03_SET_CUR);
-  Serial.write(61);                               // Move cursor
   Serial.print("Software version: ");
   Serial.print(softRev, DEC);                     // Print softRev to LCD03
 
@@ -44,10 +34,8 @@ void setup(){
 void loop(){
 
   int rangeData = getRange();                     // Calls a function to get range
-  Serial.write(LCD03_SET_CUR);
-  Serial.write(21);                               // Move cursor to space 21
-  Serial.println("Range = ");
-  Serial.print(rangeData, DEC);                   // Print rangeData to LCD03                      // Print some spaces to slear spaces after data
+  Serial.print("Range = ");
+  Serial.println(rangeData, DEC);                   // Print rangeData to LCD03                      // Print some spaces to slear spaces after data
 
   delay(100);                                      // Wait before looping
 }
@@ -58,7 +46,7 @@ int getRange(){                                   // This function gets a rangin
 
   Wire.beginTransmission(SRF_ADDRESS);             // Start communticating with SRF08
   Wire.write(CMD);                                 // Send Command Byte
-  Wire.write(0x51);                                // Send 0x51 to start a ranging
+  Wire.write(0x52);                                // Send 0x51 to start a ranging (cm's) - 0x52 microseconds
   Wire.endTransmission();
 
   delay(100);                                      // Wait for ranging to be complete
@@ -77,19 +65,6 @@ int getRange(){                                   // This function gets a rangin
   return(range);                                   // Returns Range
 }
 
-int getLight(){                                    // Function to get light reading
-
-  Wire.beginTransmission(SRF_ADDRESS);
-  Wire.write(LIGHTBYTE);                           // Call register to get light reading
-  Wire.endTransmission();
-
-  Wire.requestFrom(SRF_ADDRESS, 1);                // Request 1 byte
-  while(Wire.available() < 0);                     // While byte available
-  int lightRead = Wire.read();                     // Get light reading
-
-  return(lightRead);                               // Returns lightRead
-
-}
 
 int getSoft(){                                     // Function to get software revision
 
